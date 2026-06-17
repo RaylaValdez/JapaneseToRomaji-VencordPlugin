@@ -5,11 +5,12 @@
  */
 
 import { toRomaji } from "./kana";
-import { getKanjiReading } from "./kanji";
+import { getKanjiReading, lookupNameOverride } from "./kanji";
 
 const japaneseRegex = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
 const kanaRegex = /[\u3040-\u30ff]/;
-const smallKanaRegex = /[ゃゅょャュョ]/;
+const hiraganaRegex = /[\u3040-\u309f]/;
+const smallKanaRegex = /[ぁぃぅぇぉゃゅょゎァィゥェォャュョヮ]/;
 
 const wordOverrides: Record<string, string> = {
     "こんにちは": "konnichiwa",
@@ -26,6 +27,8 @@ const charOverrides: Record<string, string> = {
     "を": "o",
 };
 
+const forceOnKanji = new Set(["僕"]);
+
 export function containsJapanese(text: string): boolean {
     return japaneseRegex.test(text);
 }
@@ -34,7 +37,7 @@ function isSmallKana(char: string): boolean {
     return smallKanaRegex.test(char);
 }
 
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
     return text
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -85,6 +88,17 @@ export function renderRubyText(text: string, options: RenderOptions = {}): strin
         const char = text[i];
 
         if (japaneseRegex.test(char)) {
+            const nameMatch = lookupNameOverride(text, i);
+            if (nameMatch) {
+                if (!annotateKana && !annotateKanji) {
+                    result += escapeHtml(nameMatch.name);
+                } else {
+                    result += `<ruby>${escapeHtml(nameMatch.name)}<rt>${nameMatch.reading}</rt></ruby>`;
+                }
+                i += nameMatch.name.length;
+                continue;
+            }
+
             const jpStart = i;
             while (i < text.length && japaneseRegex.test(text[i])) {
                 if (i + 1 < text.length && isSmallKana(text[i + 1])) {
@@ -132,7 +146,19 @@ export function renderRubyText(text: string, options: RenderOptions = {}): strin
                     }
                 } else {
                     if (annotateKanji) {
-                        const reading = getKanjiReading(c, readingPreference);
+                        let okurigana = "";
+                        let k = j + 1;
+                        while (k < jpBlock.length && hiraganaRegex.test(jpBlock[k])) {
+                            okurigana += jpBlock[k];
+                            k++;
+                        }
+                        const nextIsKana = !!okurigana;
+                        const nextNext = okurigana ? okurigana[0] : (jpBlock[j + 1] || "");
+                        const nextIsKanji = nextNext && japaneseRegex.test(nextNext) && !kanaRegex.test(nextNext);
+                        let pref: "kun" | "on" = nextIsKana ? "kun" : nextIsKanji ? "on" : readingPreference;
+                        if (c === "歳" && /[0-9]/.test(text[jpStart + j - 1] || "")) pref = "on";
+                        if (forceOnKanji.has(c)) pref = "on";
+                        const reading = getKanjiReading(c, pref, okurigana || undefined);
                         if (reading) {
                             result += `<ruby data-kanji="${c}">${c}<rt>${reading}</rt></ruby>`;
                         } else {
