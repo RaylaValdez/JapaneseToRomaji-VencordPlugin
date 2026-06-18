@@ -234,7 +234,7 @@ const RubyAnnotator: React.FC<RubyAnnotatorProps> = ({ message }) => {
         const handleKanjiEnter = (e: Event) => {
             if (!settings.store.showTooltip) return;
             const el = e.currentTarget as HTMLElement;
-            const char = el.getAttribute("data-kanji") || "";
+            const char = (el.getAttribute("data-kanji") || "")[0] || "";
             const info = lookupKanji(char);
             if (info) {
                 cancelHide();
@@ -283,7 +283,7 @@ const UsernameAnnotator: React.FC<{ name: string; }> = ({ name }) => {
     const handleOver = (e: React.MouseEvent<HTMLSpanElement>) => {
         const target = (e.target as HTMLElement).closest("[data-kanji]");
         if (!target || !settings.store.showTooltip) return;
-        const char = target.getAttribute("data-kanji") || "";
+        const char = (target.getAttribute("data-kanji") || "")[0] || "";
         const info = lookupKanji(char);
         if (info) {
             cancelHide();
